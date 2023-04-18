@@ -1,5 +1,15 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "features": {
-  }
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "GitHub.github-vscode-theme"
+      ]
+    }
+  },
+  "postCreateCommand": "pip install -e . '.[full,test]'"
 }
