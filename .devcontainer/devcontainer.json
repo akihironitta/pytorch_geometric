@@ -1,4 +1,31 @@
+// https://code.visualstudio.com/docs/devcontainers/containers
 {
-  "image": "mcr.microsoft.com/devcontainers/python:3.10",
-  "postCreateCommand": "sudo apt update && sudo apt install cmake -y && pip install -U pip && pip install torch && pip install -e '.[full,test]'"
+  "name": "pyg",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "target": "pyg-devcontainer",
+    "args": {
+      "PYTHON_VERSION": "3.10"
+    }
+  },
+  "postCreateCommand": "pip install -U pip && pip install torch && pip install -e '.[full,test]'",
+  "customizations": {
+    "vscode": {
+      "settings": {}
+    }
+  },
+  "containerEnv": {
+    "FULL_TEST": "1"
+  },
+  "capAdd": [
+    "SYS_PTRACE"
+  ],
+  // https://containers.dev/features
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {}
+  }
 }
