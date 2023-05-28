@@ -38,6 +38,7 @@ from .geometry import GeometricShapes
 from .bitcoin_otc import BitcoinOTC
 from .icews import ICEWS18
 from .gdelt import GDELT
+from .gdelt_lite import GDELTLite
 from .willow_object_class import WILLOWObjectClass
 from .pascal import PascalVOCKeypoints
 from .pascal_pf import PascalPF

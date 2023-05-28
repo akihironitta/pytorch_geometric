@@ -29,6 +29,8 @@ class GDELTLite(torch_geometric.data.InMemoryDataset):
     - validation: 2019
     - testing: 2020
 
+    GDELT 8,831   1,912,909 0.1 413 186 Yes Yes Yes
+
     **STATS:**
 
     .. list-table::
@@ -74,6 +76,9 @@ class GDELTLite(torch_geometric.data.InMemoryDataset):
 
     @property
     def processed_file_names(self) -> list[str]:
+        import datetime
+
+        # FIXME: replace with data.pt
         return "data.pt"
 
     def download(self):
@@ -82,16 +87,12 @@ class GDELTLite(torch_geometric.data.InMemoryDataset):
             torch_geometric.data.download_url(f"{self.url}/{filename}",
                                               self.raw_dir)
 
-    # code adapted from:
-    # https://github.com/CongWeilin/GraphMixer/blob/bbdd9923706a02d0619dfd00ef7880911f003a65/DATA/GDELT_lite/gen_dataset.py
     def process(self):
-        print("processing edges")
-        df = pd.read_csv(f"{self.raw_dir}/edges.csv")
-        print("raw df", df)
-        print("train_edge_end", df[df["ext_roll"].gt(0)].index[0])
-        print("val_edge_end", df[df["ext_roll"].gt(1)].index[0])
-        print("num_nodes", max(int(df['src'].max()), int(df['dst'].max())) + 1)
-        print(df[["dst", "src"]].value_counts())
+        # code adapted from:
+        # https://github.com/CongWeilin/GraphMixer/blob/bbdd9923706a02d0619dfd00ef7880911f003a65/DATA/GDELT_lite/gen_dataset.py
+        # FIXME: replace processed with raw
+        # df = pd.read_csv(f"{self.raw_dir}/edges.csv")
+        df = pd.read_csv(f"{self.processed_dir}/edges.csv")
 
         # GDELTLite is 1/100 of the original GDELT
         select = np.arange(0, len(df), 100)
@@ -108,18 +109,16 @@ class GDELTLite(torch_geometric.data.InMemoryDataset):
             })
 
         # create edge features
-        print("processing edge_features")
-        edge_attr = torch.load(f"{self.raw_dir}/edge_features.pt").type(
-            torch.float32)
-        print("\traw edge_attr", edge_attr.shape)
+        # FIXME: replace processed with raw
+        # edge_attr = torch.load(f"{self.raw_dir}/edge_features.pt")
+        edge_attr = torch.load(f"{self.processed_dir}/edge_features.pt")
         edge_attr = edge_attr[select]
-        print("\tpro edge_attr", edge_attr.shape)
+        print(edge_attr.shape)
 
         # create node features
-        print("processing node_features")
-        x = torch.load(f"{self.raw_dir}/node_features.pt").type(torch.float32)
-        print("\t raw x", x.shape)
-        print("\t pro x", x.shape)
+        # FIXME: replace processed with raw
+        # x = torch.load(f"{self.raw_dir}/node_features.pt")
+        x = torch.load(f"{self.processed_dir}/node_features.pt")
 
         edge_index = torch.LongTensor(new_df[["src", "dst"]].T.values)
         edge_timestamp = torch.LongTensor(new_df.time.values)
@@ -127,7 +126,67 @@ class GDELTLite(torch_geometric.data.InMemoryDataset):
             x=x,  # [num_nodes, 413]
             edge_index=edge_index,  # [2, num_edges]
             edge_attr=edge_attr,  # [num_edges, 186]
-            # edge_label_index=edge_index,  # [2, num_edges]
+            edge_label=edge_attr,  # [num_edges, 186]
+            edge_label_index=edge_index,  # [2, num_edges]
             time=edge_timestamp,  # [num_edges,]
         )
         self.save([data], self.processed_paths[0])
+
+
+dataset = GDELTLite(root="./")
+data = dataset[0]
+print(data)
+data.validate()
+batch_size = 1
+loader = torch_geometric.loader.LinkNeighborLoader(
+    data=data,
+    num_neighbors=[2, 2],
+    batch_size=batch_size,
+    edge_label_index=None,  # sample from all edges
+    edge_label=data.edge_label,  # same length as `edge_label_index`
+    edge_label_time=data.time,  # same length as `edge_label_index`
+    temporal_strategy="last",
+    time_attr="time",
+    # directed=False,  # unsupported?
+)
+
+print("=============================================================")
+data = next(iter(loader))
+print(data)
+
+print("input edge index", data.edge_index.size())  # []
+
+# [2, num_sampled_edges]
+print("output edge index", data.edge_label_index.size())
+# [num_sampled_edges, 186]
+print("output edge label", data.edge_label.size())
+# [num_sampled_edges,]
+print("edge timestamp", data.time.size())
+
+num_sampled_edges = len(data.edge_index)
+assert (num_sampled_edges >=
+        batch_size), "sampled edges are (almost) always larger than batch_size"
+
+
+def model(x, edge_index, time) -> torch.Tensor:
+    # === graph mixer ===
+    # 1. encode link
+    # 1.1. temporal encoding
+    # 1.2. 1-layer MLP-mixer
+    # 2. encode node
+    # 3. classify link
+    print(
+        f"... model(x={x.size()}, edge_index={edge_index.size()}, time={time.size()})"
+    )
+    return torch.zeros((num_sampled_edges, 186))
+
+
+def loss_fn(edge_label_out, edge_label) -> torch.Tensor:
+    print(
+        f"... loss_fn(edge_label_out={edge_label_out.size()}, edge_label={edge_label.size()})"
+    )
+    return torch.zeros((1, ))
+
+
+edge_label_out = model(data.x, data.edge_index, data.time)
+loss = loss_fn(edge_label_out[:batch_size], data.edge_label[:batch_size])
